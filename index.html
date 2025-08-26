@@ -1,0 +1,401 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>もやぽん Demo (超簡易版)</title>
+  <style>
+    :root { --bg:#f7f7f8; --card:#fff; --text:#111; --muted:#666; --border:#e5e7eb; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family: system-ui, -apple-system, Segoe UI, Roboto, Noto Sans JP, sans-serif; background:var(--bg); color:var(--text); }
+    .container { max-width: 1000px; margin: 0 auto; padding: 16px; }
+    .card { background:var(--card); border:1px solid var(--border); border-radius:16px; padding:16px; box-shadow: 0 2px 10px rgba(0,0,0,.03); }
+    .row { display:flex; gap:16px; }
+    .col { flex:1; }
+    .title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+    .small { font-size: 12px; color: var(--muted); }
+    .pill { display:inline-block; padding:4px 8px; border:1px solid var(--border); border-radius:999px; font-size:12px; background:#fafafa; }
+    input, select, textarea, button { font:inherit; }
+    input, select, textarea { width:100%; padding:10px; border:1px solid var(--border); border-radius:12px; background:#fff; }
+    button { padding:10px 14px; border-radius:12px; border:1px solid var(--border); background:#111; color:#fff; cursor:pointer; }
+    button.ghost { background:#fff; color:#111; }
+    .post { border:1px solid var(--border); border-radius:14px; padding:12px; }
+    .muted { color: var(--muted); }
+    .space-y > * + * { margin-top: 12px; }
+    .hidden { display:none; }
+    .right { display:flex; gap:8px; align-items:center; }
+    .headerRow { display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:12px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div id="auth" class="card" style="max-width:600px; margin:40px auto;">
+      <div class="title">もやぽん Demo（超簡易・オフライン）</div>
+      <div class="small">データはこのブラウザの <code>localStorage</code> に保存されます。ページ更新やオフラインでも動作します。</div>
+      <div class="space-y" style="margin-top:12px;">
+        <div>
+          <div class="small">ロール</div>
+          <div class="right">
+            <label><input type="radio" name="role" value="student" checked> 相談者（未成年）</label>
+            <label><input type="radio" name="role" value="advisor"> アドバイザー（大人）</label>
+          </div>
+        </div>
+        <div>
+          <div class="small">学校コード（同じコードだけでクローズド）</div>
+          <input id="school" placeholder="例）SHOWA-1A">
+        </div>
+        <div>
+          <div class="small">ニックネーム（表示名／匿名）</div>
+          <input id="nickname" placeholder="匿名の表示名">
+        </div>
+        <div id="advBlock" class="hidden">
+          <div class="small">アドバイザー確認コード（デモ）</div>
+          <input id="advcode" placeholder="advisor123">
+        </div>
+        <div class="right">
+          <button id="loginBtn">はじめる</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="app" class="hidden">
+      <div class="headerRow">
+        <div>
+          <div class="title">もやぽん Demo</div>
+          <div class="small">学校コード: <span id="hSchool" class="pill"></span> ／ ロール: <span id="hRole" class="pill"></span> ／ <span id="hName"></span></div>
+        </div>
+        <div class="right">
+          <button id="tabPosts">投稿</button>
+          <button class="ghost" id="tabInsights">インサイト</button>
+          <button class="ghost" id="logoutBtn">ログアウト</button>
+        </div>
+      </div>
+
+      <div id="viewPosts">
+        <div class="row">
+          <div class="col">
+            <div class="card space-y">
+              <div class="title">新規投稿</div>
+              <div id="composerForAdvisor" class="small muted">アドバイザーは投稿できません。返信のみ可能です。</div>
+              <div id="composer">
+                <div class="right">
+                  <select id="mood">
+                    <option>学校</option>
+                    <option>友人</option>
+                    <option>家庭</option>
+                    <option>恋愛</option>
+                    <option>その他</option>
+                  </select>
+                  <span class="pill">匿名投稿</span>
+                </div>
+                <div style="margin-top:8px;"><textarea id="text" rows="5" placeholder="もやもやを安全に吐き出してね（個人が特定される情報は書かないでね）"></textarea></div>
+                <div class="right" style="margin-top:8px;"><button id="send">投稿する</button></div>
+                <div class="small muted" id="warn"></div>
+              </div>
+            </div>
+
+            <div class="card" style="margin-top:16px;">
+              <div class="headerRow">
+                <div class="title">みんなの相談</div>
+                <div class="right">
+                  <select id="filter">
+                    <option value="all">すべて</option>
+                    <option>学校</option>
+                    <option>友人</option>
+                    <option>家庭</option>
+                    <option>恋愛</option>
+                    <option>その他</option>
+                  </select>
+                  <button class="ghost" id="resetBtn">（管理）この空間を初期化</button>
+                </div>
+              </div>
+              <div id="list" class="space-y"></div>
+            </div>
+          </div>
+          <div class="col" style="max-width:360px;">
+            <div class="card">
+              <div class="title">空間のメンバー</div>
+              <div id="members" class="space-y"></div>
+            </div>
+            <div class="card" style="margin-top:16px;">
+              <div class="title">データ</div>
+              <div class="space-y small">
+                <div class="row">
+                  <div class="col"><div class="post"><div>学校</div><div id="c_school" style="font-weight:700"></div></div></div>
+                  <div class="col"><div class="post"><div>友人</div><div id="c_friend" style="font-weight:700"></div></div></div>
+                </div>
+                <div class="row">
+                  <div class="col"><div class="post"><div>家庭</div><div id="c_home" style="font-weight:700"></div></div></div>
+                  <div class="col"><div class="post"><div>恋愛</div><div id="c_love" style="font-weight:700"></div></div></div>
+                </div>
+                <div class="post"><div>その他</div><div id="c_other" style="font-weight:700"></div></div>
+                <div class="right">
+                  <button class="ghost" id="exportBtn">エクスポート</button>
+                  <label class="ghost" style="padding:10px 14px; border:1px solid var(--border); border-radius:12px; cursor:pointer;">
+                    インポート<input id="importFile" type="file" accept="application/json" style="display:none;">
+                  </label>
+                </div>
+                <div class="small muted">※ 本番ではサーバーに暗号化保管＋厳密なアクセス制御</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="viewInsights" class="hidden">
+        <div class="row">
+          <div class="col">
+            <div class="card">
+              <div class="title">クイック指標</div>
+              <div class="row">
+                <div class="col"><div class="post"><div class="small muted">投稿総数</div><div id="i_total" style="font-size:24px; font-weight:800;"></div></div></div>
+                <div class="col"><div class="post"><div class="small muted">返信率</div><div id="i_rate" style="font-size:24px; font-weight:800;"></div></div></div>
+              </div>
+            </div>
+          </div>
+          <div class="col">
+            <div class="card">
+              <div class="title">注意事項</div>
+              <ul>
+                <li>個人を特定できる情報（氏名・連絡先・住所など）は書かないでください。</li>
+                <li>緊急の安全に関わる内容は、アプリ外で学校・保護者・専門機関へ。</li>
+                <li>相手を尊重した言葉でコミュニケーションしましょう。</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="card" style="margin-top:16px;">
+          <div class="title">最近の投稿（5件）</div>
+          <div id="i_latest" class="space-y"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const LS_KEY = 'moyapon_simple_v1';
+    const BANNED = ['殺す','自殺','死ね','住所','電話番号','LINE ID'];
+
+    let session = null; // { role, nickname, school }
+
+    function loadDB(){ try{ const raw=localStorage.getItem(LS_KEY); return raw?JSON.parse(raw):{schools:{}};}catch(e){return {schools:{}}} }
+    function saveDB(db){ localStorage.setItem(LS_KEY, JSON.stringify(db)); }
+    function uid(){ return Math.random().toString(36).slice(2,10); }
+    function now(){ return new Date().toISOString(); }
+
+    function getSpace(db, school){ return db.schools[school] || { posts: [], profiles:{} }; }
+    function setSpace(db, school, space){ db.schools[school]=space; saveDB(db); }
+
+    function qs(id){ return document.getElementById(id); }
+    function el(tag, cls){ const e=document.createElement(tag); if(cls) e.className=cls; return e; }
+
+    // --- Auth ---
+    const auth = qs('auth');
+    const app = qs('app');
+    const roleRadios = document.getElementsByName('role');
+    const school = qs('school');
+    const nickname = qs('nickname');
+    const advBlock = qs('advBlock');
+    const advcode = qs('advcode');
+
+    roleRadios.forEach(r=>{
+      r.addEventListener('change',()=>{
+        advBlock.classList.toggle('hidden', r.value !== 'advisor' || !r.checked);
+      })
+    });
+
+    qs('loginBtn').addEventListener('click', ()=>{
+      const role = [...roleRadios].find(r=>r.checked).value;
+      if(!school.value.trim() || !nickname.value.trim()){
+        alert('学校コードとニックネームを入力してください');
+        return;
+      }
+      if(role==='advisor' && advcode.value !== 'advisor123'){
+        alert('アドバイザー確認コードが違います（demo: advisor123）');
+        return;
+      }
+      session = { role, nickname: nickname.value.trim(), school: school.value.trim() };
+      auth.classList.add('hidden');
+      app.classList.remove('hidden');
+      initApp();
+    });
+
+    // --- App ---
+    function initApp(){
+      qs('hSchool').textContent = session.school;
+      qs('hRole').textContent = session.role === 'advisor' ? 'アドバイザー' : '相談者';
+      qs('hName').textContent = session.nickname;
+
+      // composer gate
+      qs('composerForAdvisor').style.display = session.role==='advisor' ? 'block':'none';
+      qs('composer').style.display = session.role==='advisor' ? 'none':'block';
+
+      renderMembers();
+      renderList();
+      updateCounts();
+      updateInsights();
+    }
+
+    qs('logoutBtn').addEventListener('click', ()=>{ location.reload(); });
+
+    // Tabs
+    const tabPosts = qs('tabPosts');
+    const tabInsights = qs('tabInsights');
+    const viewPosts = qs('viewPosts');
+    const viewInsights = qs('viewInsights');
+    tabPosts.addEventListener('click',()=>{ viewPosts.classList.remove('hidden'); viewInsights.classList.add('hidden'); tabPosts.classList.remove('ghost'); tabInsights.classList.add('ghost'); });
+    tabInsights.addEventListener('click',()=>{ viewInsights.classList.remove('hidden'); viewPosts.classList.add('hidden'); tabInsights.classList.remove('ghost'); tabPosts.classList.add('ghost'); updateInsights(); });
+
+    // Posting
+    qs('send').addEventListener('click', ()=>{
+      const text = qs('text').value.trim();
+      const mood = qs('mood').value;
+      const w = warnMsg(text);
+      if(w){ qs('warn').textContent = w; return; } else { qs('warn').textContent=''; }
+      const db = loadDB();
+      const space = getSpace(db, session.school);
+      space.posts.push({ id: uid(), text, mood, createdAt: now(), author: 'anon-'+uid(), replies: [] });
+      space.profiles[session.nickname] = { role: session.role, joinedAt: now() };
+      setSpace(db, session.school, space);
+      qs('text').value = '';
+      renderList();
+      updateCounts();
+      updateInsights();
+    });
+
+    function warnMsg(text){
+      if(!text) return '内容を入力してください';
+      if(text.length>2000) return '長文すぎます（2000字以内）';
+      const hit = BANNED.find(w=>text.includes(w));
+      if(hit) return '不適切な語句が含まれています：「'+hit+'」';
+      return '';
+    }
+
+    // Filter & reset
+    qs('filter').addEventListener('change', renderList);
+    qs('resetBtn').addEventListener('click', ()=>{
+      if(!confirm('この学校コードのデータを全て削除します。よろしいですか？')) return;
+      const db = loadDB();
+      delete db.schools[session.school];
+      saveDB(db);
+      renderMembers();
+      renderList();
+      updateCounts();
+      updateInsights();
+    });
+
+    // Members
+    function renderMembers(){
+      const box = qs('members');
+      box.innerHTML = '';
+      const db = loadDB();
+      const space = getSpace(db, session.school);
+      space.profiles[session.nickname] = space.profiles[session.nickname] || { role: session.role, joinedAt: now() };
+      setSpace(db, session.school, space);
+      const entries = Object.entries(space.profiles).map(([name,v])=>({name, ...v})).sort((a,b)=>a.name.localeCompare(b.name));
+      if(entries.length===0){ box.innerHTML = '<div class="small muted">メンバーなし</div>'; return; }
+      entries.forEach(m=>{
+        const row = el('div','post');
+        row.innerHTML = `<div><span class="pill">${m.role==='advisor'?'アドバイザー':'相談者'}</span> <strong>${m.name}</strong></div><div class="small muted">${new Date(m.joinedAt).toLocaleString()}</div>`;
+        box.appendChild(row);
+      });
+    }
+
+    // List & reply
+    function renderList(){
+      const list = qs('list');
+      list.innerHTML = '';
+      const db = loadDB();
+      const space = getSpace(db, session.school);
+      const f = qs('filter').value;
+      const posts = [...space.posts].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).filter(p=> f==='all' ? true : p.mood===f);
+
+      if(posts.length===0){ list.innerHTML = '<div class="small muted">まだ投稿がありません</div>'; return; }
+
+      posts.forEach(p=>{
+        const card = el('div','post');
+        const head = el('div');
+        head.innerHTML = `<span class="pill">${p.mood}</span> <span class="small muted">${new Date(p.createdAt).toLocaleString()}</span>`;
+        const body = el('div'); body.style.marginTop='6px'; body.textContent = p.text;
+        const footer = el('div','small muted'); footer.textContent = '投稿者: '+p.author;
+        card.appendChild(head); card.appendChild(body); card.appendChild(footer);
+
+        // replies
+        if(p.replies && p.replies.length){
+          p.replies.forEach(r=>{
+            const rep = el('div','post'); rep.style.background='#fafafa'; rep.style.marginTop='8px';
+            rep.innerHTML = `<span class="pill">アドバイザー</span> <strong>${r.advisor}</strong> <span class="small muted">${new Date(r.createdAt).toLocaleString()}</span><div style="margin-top:6px;">${r.text}</div>`;
+            card.appendChild(rep);
+          })
+        }
+
+        // reply form
+        if(session.role==='advisor'){
+          const area = el('textarea'); area.placeholder = '相手を尊重した言葉で返信しましょう'; area.style.width='100%'; area.style.marginTop='8px'; area.rows=3;
+          const btn = el('button'); btn.textContent = '返信する'; btn.style.marginTop='6px';
+          btn.addEventListener('click', ()=>{
+            const t = area.value.trim();
+            const w = warnMsg(t);
+            if(w){ alert(w); return; }
+            p.replies = p.replies || [];
+            p.replies.push({ id: uid(), text: t, advisor: session.nickname, createdAt: now() });
+            area.value='';
+            setSpace(db, session.school, space);
+            renderList();
+            updateInsights();
+          });
+          card.appendChild(area); card.appendChild(btn);
+        }
+
+        list.appendChild(card);
+      });
+    }
+
+    // Counts & insights
+    function updateCounts(){
+      const db = loadDB();
+      const space = getSpace(db, session.school);
+      const c = { '学校':0, '友人':0, '家庭':0, '恋愛':0, 'その他':0 };
+      space.posts.forEach(p=> c[p.mood]=(c[p.mood]||0)+1 );
+      qs('c_school').textContent=c['学校'];
+      qs('c_friend').textContent=c['友人'];
+      qs('c_home').textContent=c['家庭'];
+      qs('c_love').textContent=c['恋愛'];
+      qs('c_other').textContent=c['その他'];
+    }
+
+    function updateInsights(){
+      const db = loadDB();
+      const space = getSpace(db, session.school);
+      const total = space.posts.length;
+      const replied = space.posts.filter(p=> (p.replies||[]).length>0).length;
+      const rate = total===0? 0 : Math.round((replied/total)*100);
+      qs('i_total').textContent = total;
+      qs('i_rate').textContent = rate + '%';
+
+      const latest = [...space.posts].sort((a,b)=>b.createdAt.localeCompare(a.createdAt)).slice(0,5);
+      const box = qs('i_latest'); box.innerHTML='';
+      latest.forEach(p=>{
+        const item = el('div','post');
+        item.innerHTML = `<span class="pill">${p.mood}</span> <span class="small muted">${new Date(p.createdAt).toLocaleString()}</span><div style="margin-top:6px;" class="small">${p.text.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</div>`;
+        box.appendChild(item);
+      });
+    }
+
+    // Export / Import
+    qs('exportBtn').addEventListener('click', ()=>{
+      const db = loadDB();
+      const space = getSpace(db, session.school);
+      const blob = new Blob([JSON.stringify(space, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a'); a.href=url; a.download='moyapon_'+Date.now()+'.json'; a.click(); URL.revokeObjectURL(url);
+    });
+    qs('importFile').addEventListener('change', (e)=>{
+      const file = e.target.files && e.target.files[0]; if(!file) return;
+      const reader = new FileReader();
+      reader.onload = ()=>{ try{ const obj = JSON.parse(reader.result); if(!obj.posts || !obj.profiles) throw new Error('invalid'); const db=loadDB(); setSpace(db, session.school, obj); renderMembers(); renderList(); updateCounts(); updateInsights(); alert('インポート完了'); } catch(err){ alert('読み込みに失敗しました'); } };
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>
